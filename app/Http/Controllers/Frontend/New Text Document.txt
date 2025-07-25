@@ -1,0 +1,231 @@
+<?php
+
+namespace App\Http\Controllers;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
+use DB;
+use Session;
+use Illuminate\Support\Str;
+use App\Models\Cart;
+
+class AuthController extends Controller
+{
+     public function register(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'number' => 'required|string|max:20',
+            'password' => 'required|confirmed|min:8',
+        ]);
+
+        User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'number' => $request->number,
+            'password' => Hash::make($request->password),
+        ]);
+
+        return redirect()->back()->with('success', 'Registration successful!');
+    }
+    
+    public function login(Request $request)
+    {
+        // Validate form input
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|min:6',
+        ]);
+
+        // Attempt to log the user in
+        if (Auth::attempt($request->only('email', 'password'))) {
+            
+            // Redirect to dashboard if successful
+            return redirect()->route('home')->with('success', 'Login successful!');
+        }
+
+        // Redirect back with error if login fails
+        return back()->withErrors(['email' => 'Invalid credentials'])->withInput();
+    }
+    
+     public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect('/'); // Redirect to home page after logout
+    }
+    
+    public function signin(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'number' => 'required|exists:users,number|regex:/^[0-9]{10}$/',
+        ]);
+    
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors(),
+            ], 422); // 422 Unprocessable Entity
+        }
+    
+        $otp = rand(100000, 999999); // Generate OTP
+        $phone = $request->input('number'); // Get phone number from request
+    
+        Session::put('phoneOtp', $phone);
+        Session::put('otp', $otp);
+    
+        $userOnData = User::where('number', $phone)->first();
+
+        if ($userOnData) {
+            $smsSent = $this->sendOtpToPhoneTwilio($phone, $otp);
+    
+            if ($smsSent) {
+                // Save OTP to the database
+                DB::table('otps')->updateOrInsert(
+                    ['phone' => $phone],
+                    [
+                        'otp' => $otp,
+                        'created_at' => now(),
+                        'expire_at' => now()->addMinutes(5),
+                    ]
+                );
+                return response()->json(['message' => 'OTP sent successfully!'], 200);
+            } else {
+                return response()->json(['error' => 'Failed to send OTP.'], 500);
+            }
+        } else {
+            return response()->json(['error' => 'Phone Number Not Registered.'], 400);
+        }
+    }
+
+    
+    private function sendOtpToPhoneTwilio($phone, $otp)
+    {
+        $accountSid = env('TWILIO_SID');
+        $authToken = env('TWILIO_AUTH_TOKEN');
+        $twilioPhoneNumber = env('TWILIO_PHONE');
+
+        $message = "Verification OTP code before login: {$otp}";
+
+        $url = "https://api.twilio.com/2010-04-01/Accounts/{$accountSid}/Messages.json";
+
+        $data = [
+            'To' => '+91'.$phone,
+            'From' => $twilioPhoneNumber,
+            'Body' => $message,
+        ];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+        curl_setopt($ch, CURLOPT_USERPWD, "{$accountSid}:{$authToken}");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        $response = curl_exec($ch);
+        curl_close($ch);
+        \Log::info('Twilio Response: ' . $response);
+        
+        return $response;
+
+    }
+    
+public function verifyOtp(Request $request)
+{
+    if (!Auth::check()) {
+        // Validate the input
+        $validator = Validator::make($request->all(), [
+            'otp' => [
+                'required',
+                'digits:6',
+            ],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors(),
+            ], 422); // 422 Unprocessable Entity
+        }
+
+        $phone = Session::get('phoneOtp');
+        $otp   = $request->input('otp'); // Input OTP from request
+
+        $otpRecord = DB::table('otps')->where('phone', $phone)->orderBy('created_at', 'desc')->first();
+
+        // Check if OTP exists and matches
+        if ($otpRecord && $otpRecord->otp == $otp) {
+            $user = User::where('number', $phone)->first();
+
+            Auth::login($user);
+            session(['user' => $user]);
+
+            // Remove OTP after successful verification
+            DB::table('otps')->where('phone', $phone)->delete();
+
+            $this->syncSessionCartWithDatabase(auth()->user());
+
+            if (Auth::check()) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Login successful!',
+                    'redirect_url' => route('home'), // Frontend redirect URL
+                ], 200);
+            }
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Login failed, please try again.',
+            ], 401);
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid OTP or phone number.',
+        ], 400);
+    } else {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'You are already logged in.',
+        ], 403); // Forbidden
+    }
+}
+
+private function syncSessionCartWithDatabase($user)
+{
+    // Retrieve the cart data from the session
+    $cart = Session::get('cart', []);
+
+    // Get the user's existing cart items from the database, keyed by product_id
+    $existingCart = Cart::where('user_id', $user->id)->get()->keyBy('product_id');
+
+    // Loop through session cart items and prepare for saving
+    foreach ($cart as $item) {
+        // If the item already exists in DB, remove it
+        if (isset($existingCart[$item['product_id']])) {
+            $existingCart[$item['product_id']]->delete();
+        }
+
+        // Create a new cart item instance
+        $cartItem = new Cart([
+            'user_id' => $user->id,
+            'product_id' => $item['product_id'],
+            'quantity' => $item['quantity']
+        ]);
+
+        // Add/replace item in the existing cart collection
+        $existingCart[$item['product_id']] = $cartItem;
+    }
+
+    // Save all items to the database
+    if (!empty($existingCart)) {
+        foreach ($existingCart as $cartItem) {
+            $cartItem->save();
+        }
+    }
+}
+
+}

@@ -1,0 +1,12 @@
+.btnml-2 {
+    margin-left: 2px;
+}
+
+.errors {
+    color: red !important;
+    margin-left: 5px;
+  }
+  
+  label.errors {
+    display: inline !important;
+  }

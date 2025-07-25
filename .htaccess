@@ -1,0 +1,16 @@
+# Enable the rewrite engine
+RewriteEngine on 
+
+# Specify the conditions for the host and the URI that should not be redirected
+RewriteCond %{HTTP_HOST} ^shopkart24.com$ [NC,OR]
+RewriteCond %{HTTP_HOST} ^www.shopkart24.com$
+RewriteCond %{REQUEST_URI} !public/
+
+# Define the rewrite rule to redirect to the subdirectory
+RewriteRule (.*) /public/$1 [L]
+
+# If the subdomain should point to the Laravel 'public' directory
+RewriteCond %{HTTP_HOST} ^shopkart24.com$
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteCond %{REQUEST_URI} !\.(gif|jpg|png|css|js|ico)$
+RewriteRule ^(.*)$ /public/$1 [L,NC]
