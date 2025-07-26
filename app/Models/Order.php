@@ -10,7 +10,8 @@ class Order extends Model
     use HasFactory;
     
      protected $fillable = [
-        'user_id', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature', 'amount', 'status'
+        'user_id', 'razorpay_order_id', 'razorpay_payment_id', 'razorpay_signature', 'amount', 'status', 'stripe_payment_intent_id', 'stripe_payment_method_id', 'stripe_client_secret',
+
     ];
 
         // Define the relationship to the OrderItem model

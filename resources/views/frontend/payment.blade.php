@@ -5,9 +5,9 @@
 <div class="container d-flex justify-content-center align-items-center">
     <div class="text-center">
         <h2 class="text-center">Complete Your Payment</h2><br><br>
-        <form action="{{ route('payment') }}" method="POST">
+        <form action="{{ route('payment') }}" method="POST" onsubmit="disableStripeButton(this)">
             @csrf
-            <input type="text" name="address_id" value="{{ $addressId }}" required>
+            <input type="hidden" name="address_id" value="{{ $addressId }}" required>
             <script src="https://checkout.razorpay.com/v1/checkout.js"
                     data-key="{{ env('RAZORPAY_KEY') }}"
                     data-amount="{{ $order->amount }}"
@@ -25,5 +25,14 @@
         </form>
     </div>
 </div>
+
+<script>
+function disableStripeButton(form) {
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.innerText = 'Processing...'; // Optional feedback text
+}
+</script>
+
 @endsection
 

@@ -14,6 +14,11 @@ use App\Models\OrderItem;
 use App\Models\Cart;
 use App\Mail\OrderPlaced;
 use Illuminate\Support\Facades\Mail;
+use Stripe\Stripe;
+use Stripe\Checkout\Session as StripeSession;
+use Stripe\PaymentIntent;
+use Stripe\PaymentMethod;
+use Stripe\Customer;
 
 class PaymentController extends Controller
 {
@@ -84,4 +89,103 @@ class PaymentController extends Controller
         }
     }
     
+public function processPaymentStripe(Request $request)
+{
+    Stripe::setApiKey(env('STRIPE_SECRET'));
+
+    $user = Auth::user();
+    $amount = $request->amount * 100; // amount in paisa
+
+    try {
+
+        // Step 1: Create session
+        $session = \Stripe\Checkout\Session::create([
+            'payment_method_types' => ['card'],
+            'line_items' => [[
+                'price_data' => [
+                    'currency' => 'inr',
+                    'product_data' => ['name' => 'Shopkart24 Order'],
+                    'unit_amount' => $amount,
+                ],
+                'quantity' => 1,
+            ]],
+            'mode' => 'payment', // ✅ Must be 'payment'
+            'success_url' => route('payment.success.stripe') . '?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => route('payment.failed'),
+            'customer_email' => $user->email,
+            'metadata' => [
+                'user_id' => $user->id,
+                'address_id' => $request->address_id,
+            ],
+        ]);
+
+        // Create a placeholder order with initiated status
+        $order = new Order();
+        $order->user_id = $user->id;
+        $order->amount = $request->amount;
+        $order->status = $session->payment_status;
+        $order->payment_status = 'initiated';
+        $order->stripe_payment_intent_id = $session->id;
+        $order->address_id = $request->address_id;
+        $order->order_date = now();
+        $order->razorpay_order_id = '';
+        $order->save();
+
+        // Save cart items
+        $cart = Session::get('cart', []);
+        foreach ($cart as $item) {
+            OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $item['product_id'],
+                'price' => $item['price'],
+                'quantity' => $item['quantity'],
+            ]);
+        }
+
+        return redirect($session->url); // ✅ Redirects to Stripe payment page
+
+    } catch (\Exception $e) {
+        Log::error('Stripe CheckoutSession creation failed: ' . $e->getMessage());
+        return back()->with('error', 'Stripe payment failed.');
+    }
 }
+
+public function paymentSuccessStripe(Request $request)
+{
+    try {
+        Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        $session = \Stripe\Checkout\Session::retrieve([
+            'id' => $request->get('session_id'),
+            'expand' => ['payment_intent'],
+        ]);
+
+        $paymentIntent = $session->payment_intent;
+
+        $order = Order::where('stripe_payment_intent_id', $request->get('session_id'))->first();
+
+        if ($order) {
+            $order->status = 'paid';
+            $order->payment_status = 'success';
+            $order->stripe_payment_intent_id = $paymentIntent->id;
+            $order->stripe_client_secret = $paymentIntent->client_secret;
+            $order->stripe_payment_method_id = $paymentIntent->payment_method;
+            $order->save();
+
+            // Clear cart
+            Session::forget('cart');
+            Cart::where('user_id', $order->user_id)->delete();
+        }
+
+        return view('frontend.payment_success');
+
+    } catch (\Exception $e) {
+        Log::error('Stripe success handler failed: ' . $e->getMessage());
+        return redirect()->route('payment.failed')->with('error', 'Payment verification failed.');
+    }
+}
+
+
+}
+
+

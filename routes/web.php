@@ -189,6 +189,8 @@ Route::get('/payment', [CartController::class, 'payment'])->name('razorpay.payme
 Route::post('/payment', [PaymentController::class, 'processPayment'])->name('payment');
 Route::post('/cod', [PaymentController::class, 'processCod'])->name('cod');
 
+Route::get('/payment-stripe', [CartController::class, 'paymentStripe'])->name('stripe.payment');
+Route::post('/payment-stripe', [PaymentController::class, 'processPaymentStripe'])->name('paymentStripe');
 
 Route::get('/checkout/address', [CartController::class, 'showAddressForm'])->name('checkout.address');
 Route::post('/checkout/address', [CartController::class, 'storeAddress'])->name('checkout.address.store');
@@ -208,6 +210,7 @@ Route::get('/payment/failed', function () {
     return view('frontend.payment_failed');
 })->name('payment.failed');
 
+Route::get('/payment/success-stripe', [PaymentController::class, 'paymentSuccessStripe'])->name('payment.success.stripe');
 
 Route::get('/cod/success', function () {
     return view('frontend.cod_success');

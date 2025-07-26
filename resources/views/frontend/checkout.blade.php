@@ -113,6 +113,19 @@
                             <img alt="rupay" src="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/assets/rupay.Bl62X6PG.svg" role="img" width="38" height="24" class="_1tgdqw61 _1tgdqw60 _1fragemsf _1fragemsa _1fragemsp _1fragemoc _1tgdqw66">
                         </div>
                     </div>
+                    <br>
+                    <div class="option">
+                        <div class="payment-method-row">
+                        <input type="radio" id="stripe" name="payment_method" value="stripe">
+                        <label for="stripe">
+                            Stripe Payment Gateway (UPI, Cards & NetBanking)
+                        </label>
+                            <img alt="upi" src="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/assets/upi.CmgCfll8.svg" role="img" width="38" height="24" class="_1tgdqw61 _1tgdqw60 _1fragemsf _1fragemsa _1fragemsp _1fragemoc _1tgdqw66">
+                            <img alt="visa" src="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/assets/visa.sxIq5Dot.svg" role="img" width="38" height="24" class="_1tgdqw61 _1tgdqw60 _1fragemsf _1fragemsa _1fragemsp _1fragemoc _1tgdqw66">
+                            <img alt="master" src="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/assets/master.CzeoQWmc.svg" role="img" width="38" height="24" class="_1tgdqw61 _1tgdqw60 _1fragemsf _1fragemsa _1fragemsp _1fragemoc _1tgdqw66">
+                            <img alt="rupay" src="https://cdn.shopify.com/shopifycloud/checkout-web/assets/c1.en/assets/rupay.Bl62X6PG.svg" role="img" width="38" height="24" class="_1tgdqw61 _1tgdqw60 _1fragemsf _1fragemsa _1fragemsp _1fragemoc _1tgdqw66">
+                        </div>
+                    </div>
                 </div>
     
                 <br>

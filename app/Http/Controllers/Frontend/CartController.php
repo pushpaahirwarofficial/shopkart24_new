@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 use App\Mail\OrderPlaced;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Http;
+use Stripe\Stripe;
+use Stripe\Checkout\Session as StripeSession;
 
 class CartController extends Controller
 {
@@ -354,9 +356,11 @@ public function showAddressForm(Request $request)
                 Session::flush(); // Optionally clear the entire session
             }    
             return redirect()->route('cod.success');       
-        } else {
+        } else if($request->payment_method == 'razorpay') {
             // Redirect to the payment page with the address ID
             return redirect()->route('razorpay.payment', ['address_id' => $addressId]);
+        } else {
+            return redirect()->route('stripe.payment', ['address_id' => $addressId]);
         }
     }
 
@@ -689,6 +693,20 @@ public function payment(Request $request)
 
 
         return $response->json();
+    }
+
+    public function paymentStripe(Request $request)
+    {
+        $addressId = $request->query('address_id');
+        $userId = Auth::id();
+
+        // Get actual amount from cart or order service
+        $amount = $this->getOrderAmount($userId); // In rupees
+
+        return view('frontend.paymentStripe', [
+            'amount' => $amount/100,
+            'addressId' => $addressId,
+        ]);
     }
 
 
